@@ -418,6 +418,9 @@ class SelectAreaFrame:
         data.is_data_saved = True
         self.data = data
 
+        print("X-size = ", self.data.sub_rect_scale_factor_x)
+        print("Y-size = ", self.data.sub_rect_scale_factor_y)
+
     def on_leave(self, event):
         """
         Cursor getting default state

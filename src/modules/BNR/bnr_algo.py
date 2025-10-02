@@ -72,7 +72,8 @@ class BneAlgo:
         raw_rgb = raw_rgb / (2**self.raw_image_para.bit_depth - 1)
 
         # Creating matrix to store standard deviations
-        std_mat = np.zeros([6, 3])
+        var_mat = np.zeros([6, 3])
+        mean_mat = np.zeros([6, 3])
         ind = 0
 
         # Extracting last six patches from each channel
@@ -93,12 +94,18 @@ class BneAlgo:
             ]
 
             # Calculating std for each channel patch excluding masking zeros.
-            std_mat[ind, 0] = np.std(crop_ch1_raw[crop_ch1_raw != 0])
-            std_mat[ind, 1] = np.std(crop_ch2_raw[crop_ch2_raw != 0])
-            std_mat[ind, 2] = np.std(crop_ch3_raw[crop_ch3_raw != 0])
+            var_mat[ind, 0] = np.var(crop_ch1_raw[crop_ch1_raw != 0])
+            var_mat[ind, 1] = np.var(crop_ch2_raw[crop_ch2_raw != 0])
+            var_mat[ind, 2] = np.var(crop_ch3_raw[crop_ch3_raw != 0])
+            
+            mean_mat[ind, 0] = np.mean(crop_ch1_raw[crop_ch1_raw != 0])
+            mean_mat[ind, 1] = np.mean(crop_ch2_raw[crop_ch2_raw != 0])
+            mean_mat[ind, 2] = np.mean(crop_ch3_raw[crop_ch3_raw != 0])
+
             ind += 1
 
-        self.display_matrix(std_mat)
+        # self.display_matrix(std_mat)
+        return var_mat, mean_mat
 
     def display_matrix(self, matrix):
         """
