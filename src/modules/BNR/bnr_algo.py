@@ -61,19 +61,29 @@ class BneAlgo:
         raw_rgb[:, :, 2] = b_channel
         return raw_rgb
 
-    def apply_algo(self):
+    def apply_algo(self, temp_noise_std=False):
         """
         Apply Algorithm to the R,B & G raw channels
         """
         # Generating R, G, & B raw channels
-        raw_rgb = self.generate_rgb_mask()
+        # raw_rgb = self.generate_rgb_mask()
+        
+        # raw data can be used independent of color 
+        raw_rgb = self.raw_image_para.raw_image
 
         # Normalization between 0-1
-        raw_rgb = raw_rgb / (2**self.raw_image_para.bit_depth - 1)
+        if temp_noise_std:
+            # do not apply normalization for temporal noise std calculation at this point
+            raw_rgb = np.float64(raw_rgb)
+        else:    
+            # raw_rgb = raw_rgb / (2**self.raw_image_para.bit_depth - 1)
+            pass
 
         # Creating matrix to store standard deviations
-        var_mat = np.zeros([6, 3])
-        mean_mat = np.zeros([6, 3])
+        var_mat = np.zeros([6, 1])
+        mean_mat = np.zeros([6, 1])
+        temp_std = np.zeros([6, 1]) if temp_noise_std else None
+
         ind = 0
 
         # Extracting last six patches from each channel
@@ -84,28 +94,37 @@ class BneAlgo:
 
             # Extracting patches from each R, G & B bayer channels.
             crop_ch1_raw = raw_rgb[
-                start_point[1] : end_point[1], start_point[0] : end_point[0], 0
-            ]
-            crop_ch2_raw = raw_rgb[
-                start_point[1] : end_point[1], start_point[0] : end_point[0], 1
-            ]
-            crop_ch3_raw = raw_rgb[
-                start_point[1] : end_point[1], start_point[0] : end_point[0], 2
-            ]
+                start_point[1] : end_point[1], start_point[0] : end_point[0]]
+            
+            # crop_ch2_raw = raw_rgb[
+            #     start_point[1] : end_point[1], start_point[0] : end_point[0], 1
+            # ]
+            # crop_ch3_raw = raw_rgb[
+            #     start_point[1] : end_point[1], start_point[0] : end_point[0], 2
+            # ]
 
             # Calculating std for each channel patch excluding masking zeros.
-            var_mat[ind, 0] = np.var(crop_ch1_raw[crop_ch1_raw != 0])
-            var_mat[ind, 1] = np.var(crop_ch2_raw[crop_ch2_raw != 0])
-            var_mat[ind, 2] = np.var(crop_ch3_raw[crop_ch3_raw != 0])
+            var_mat[ind, 0] = np.var(crop_ch1_raw)
+            # var_mat[ind, 1] = np.var(crop_ch2_raw[crop_ch2_raw != 0])
+            # var_mat[ind, 2] = np.var(crop_ch3_raw[crop_ch3_raw != 0])
             
-            mean_mat[ind, 0] = np.mean(crop_ch1_raw[crop_ch1_raw != 0])
-            mean_mat[ind, 1] = np.mean(crop_ch2_raw[crop_ch2_raw != 0])
-            mean_mat[ind, 2] = np.mean(crop_ch3_raw[crop_ch3_raw != 0])
+            mean_mat[ind, 0] = np.mean(crop_ch1_raw)
+            # mean_mat[ind, 1] = np.mean(crop_ch2_raw[crop_ch2_raw != 0])
+            # mean_mat[ind, 2] = np.mean(crop_ch3_raw[crop_ch3_raw != 0])
+
+            # temporal_noise std for each patch
+            if temp_noise_std:
+                # division by sqrt(2) for frame difference noise std calculation is applied as noise increases by during frame differencing
+                # and normalization is applied to observe the fpn component in [0-1] range
+                # temp_std[ind, 0] = (np.sqrt(np.mean(crop_ch1_raw))/np.sqrt(2))/(2**self.raw_image_para.bit_depth - 1)
+                temp_std[ind, 0] = np.sqrt(np.mean(crop_ch1_raw))/np.sqrt(2)
+                # temp_std[ind, 1] = (np.sqrt(np.mean(crop_ch2_raw[crop_ch2_raw != 0]))/np.sqrt(2))/(2**self.raw_image_para.bit_depth - 1)
+                # temp_std[ind, 2] = (np.sqrt(np.mean(crop_ch3_raw[crop_ch3_raw != 0]))/np.sqrt(2))/(2**self.raw_image_para.bit_depth - 1)
 
             ind += 1
 
         # self.display_matrix(std_mat)
-        return var_mat, mean_mat
+        return var_mat, mean_mat, temp_std
 
     def display_matrix(self, matrix):
         """

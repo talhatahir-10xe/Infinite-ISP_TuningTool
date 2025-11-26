@@ -43,9 +43,10 @@ class BneModule:
         return True
 
     def iterate_over_dir(self):
-        # code to iterate over files in a directory to compute patch mean nad std for noise profiling
+        # code to iterate over files in a directory to compute patch mean and std for noise profiling
 
-        raw_path = Path("/home/user3/Desktop/Maria Nadeem/Sensor Noise synthesis/IMX678_9/offset_corrected_frames")
+        # for temporal noise estimation, set the raw_Path to frame differnces dir otherwise black level corrected frames dir
+        raw_path = Path("/home/user3/Desktop/Maria Nadeem/Sensor Noise synthesis/IMX678/2frames_at_50exposures/white_light_100%/IMX678_27/BurstCapture_Pairs/single_frame")
         raw_files  = [file_path for file_path in raw_path.iterdir() if file_path.suffix == '.raw']
 
         # sort the files in increasing exposure levels (file numbering: 50, 49,48...1) 
@@ -58,38 +59,31 @@ class BneModule:
             self.raw_image_para.file_name = raw_path.name
             yield raw_image
     
-    def save_csv_files(self, variances, means):
+    def save_csv_files(self, data_dict, column_name_tag, output_dir):
         """
-        Save multiple CSV files for each row of the 6x3 matrices in the provided dictionaries.
-        Each CSV file corresponds to a row of the matrix, and the file name is based on the patch number.
+        Save a CSV file for the provided dictionary.
+        Each CSV file corresponds to the data in the dictionary, and the file name is based on the column name tag.
         """
-        output_dir = Path("/home/user3/Desktop/Maria Nadeem/Sensor Noise synthesis/IMX678_9/PTC_data")
+        # output_dir = Path("/home/user3/Desktop/Maria Nadeem/Sensor Noise synthesis/IMX678_138/PTC_data_rewritecsv")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get the number of rows from any one of the matrices (assuming all have the same shape)
-        first_key = next(iter(variances))
-        num_rows = len(variances[first_key])
-
+        first_key = next(iter(data_dict))
+        num_rows = len(data_dict[first_key])
+        
         for row_idx in range(num_rows):
-            file_path = output_dir / f"{output_dir.parent.name}_ptc_data_patch{row_idx + 1}.csv"
+
+            file_path = output_dir / f"{output_dir.parent.parent.name}_no_normalization_{column_name_tag}_patch{row_idx + 1}.csv"
             with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow(["Image_Name", "R_mean", "G_mean", "B_mean", "R_var", "G_var", "B_var"])
-                for image_name, var_matrix in variances.items():
-                    mean_matrix = means.get(image_name)
-                    if mean_matrix is None:
-                        print(f"Warning: No mean matrix found for {image_name}. Skipping.")
-                        continue
-                    # Get the row corresponding to the current patch
-                    var_row = var_matrix[row_idx]
-                    mean_row = mean_matrix[row_idx]
-                    writer.writerow(
-                        [image_name, 
-                         f"{mean_row[0]:.6f}", f"{mean_row[1]:.6f}", f"{mean_row[2]:.6f}",
-                         f"{var_row[0]:.6f}", f"{var_row[1]:.6f}", f"{var_row[2]:.6f}"]
-                    )
-                writer.writerow([])
+                # Write the header row
+                # writer.writerow(["Image_Name", f"R_{column_name_tag}", f"G_{column_name_tag}", f"B_{column_name_tag}"])
+                writer.writerow(["Image_Name", f"{column_name_tag}"])
 
+
+                for image_name, data_matrices in data_dict.items():
+                    row = data_matrices[row_idx]
+                    writer.writerow(
+                            [image_name, f"{row[0]:.6f}"])
         print(f"CSV file saved to:\n {file_path}")
 
 
@@ -108,14 +102,31 @@ class BneModule:
 
         variances = {}
         means = {}
+        temp_std = {}
+        output_dir = Path("/home/user3/Desktop/Maria Nadeem/Sensor Noise synthesis/IMX678/2frames_at_50exposures/white_light_100%/IMX678_27/BurstCapture_Pairs/PTC_data_singleframe")
+        # set the temp_noise_std to False for mean and variance calculation on black
+        # level corrected frames
+        temp_noise_flag = False
+
         for raw_image in raw_gen:
             self.raw_image_para.raw_image = raw_image
             
-            var_mat, mean_mat = noise_est.apply_algo()
+            
+            var_mat, mean_mat, temp_noise_std = noise_est.apply_algo(temp_noise_std=temp_noise_flag)
             variances[self.raw_image_para.file_name] = var_mat
             means[self.raw_image_para.file_name] = mean_mat
+            
+            if temp_noise_std is not None:
+                temp_std[self.raw_image_para.file_name] = temp_noise_std
+
             # print(f"completed NE for: {self.raw_image_para.file_name}")
-        self.save_csv_files(variances, means)
+        if temp_std:
+            self.save_csv_files(temp_std, "temporal_noise_SD", output_dir)
+        else:
+            self.save_csv_files(variances, "variance", output_dir)
+            self.save_csv_files(means, "mean", output_dir)
+        
+
         generate_separator("Noise Levels Estimated Successfully!", "-")
         generate_separator("", "*")
         return True
